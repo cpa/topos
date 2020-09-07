@@ -30,7 +30,7 @@ var particlesColors = Array();
 var colors;
 var currentColor;
 
-var socket = io("http://164.90.225.163:80");
+var socket = io("{{ server_name }}");
 
 socket.on('debug', (data) => {
     console.log('debug', data);

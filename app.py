@@ -1,6 +1,5 @@
 from math import sqrt
 
-import logging
 import string
 from flask import Flask, render_template, send_from_directory, redirect
 from flask_socketio import SocketIO, send, emit, join_room
@@ -9,8 +8,12 @@ from random import random, choice
 import json
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = '967fe107-a6cc-427a-8a38-552434ee9327'
-app.config['DEBUG'] = False
+
+if app.debug:
+    app.config.from_pyfile('dev.cfg')
+else:
+    app.config.from_pyfile('prod.cfg')
+
 socketio = SocketIO(app, cors_allowed_origins='*')
 
 class GameState:
@@ -58,14 +61,12 @@ class GameState:
 @socketio.on('mousemove')
 def handle_move(data):
     gameId = data['gameId']
-    logging.debug('mousemove: %s' % data)
     with sqlite3.connect("test.db") as conn:
         # TODO: vérifier que celui qui envoie le message est bien dans la room
         cur = conn.cursor()
         cur.execute("SELECT state FROM games WHERE gameId=(?)", (gameId,))
         gameState = GameState(**json.loads(cur.fetchone()[0]))
         gameState.particles.append(data['data'])
-        # gameState.nextColor()
         
         emit('refresh', json.loads(gameState.json()), room=gameId, include_self=True)
 
@@ -73,7 +74,7 @@ def handle_move(data):
 @socketio.on('click')
 def handle_message(data):
     gameId = data['gameId']
-    logging.debug('click: %s' % data)
+    app.logger.debug('click: %s' % data)
     with sqlite3.connect("test.db") as conn:
         # TODO: vérifier que celui qui envoie le message est bien dans la room
         cur = conn.cursor()
@@ -92,11 +93,11 @@ def handle_hello(data):
     with sqlite3.connect("test.db") as conn:
         gameId = data['gameId']
         join_room(gameId)
-        logging.debug("Moving %s to %s" % (data['playerId'], gameId))
+        app.logger.debug("Moving %s to %s" % (data['playerId'], gameId))
         cur = conn.cursor()
         cur.execute("SELECT state FROM games WHERE gameId=(?)", (gameId,))
         gameState = GameState(**json.loads(cur.fetchone()[0]))
-        logging.debug('hello %s' % gameState.json())
+        app.logger.debug('hello %s' % gameState.json())
         emit('refresh', gameState.asdict(), room=gameId)
         
 @app.route('/<gameId>')
@@ -105,15 +106,19 @@ def getGame(gameId):
       cur = conn.cursor()
       cur.execute("SELECT * FROM games WHERE gameId=(?)", (gameId,)) # TODO : vérifier l'unicité de l'insertion (pas besoin vu la logique je pense)
       if cur.fetchone():
-          logging.debug("found %s" % gameId)
+          app.logger.debug("found %s" % gameId)
       else:
           cur.execute("INSERT INTO games VALUES (?,?,?)", (gameId, 0, 0))
           conn.commit()
           state = GameState()
           cur.execute("UPDATE games SET state=(?) WHERE gameId=(?)", (state.json(), gameId))
           conn.commit()
-          logging.debug("created %s" % gameId)
+          app.logger.debug("created %s" % gameId)
     return send_from_directory('static', 'index.html')
+
+@app.route('/app.js')
+def app_js():
+    return render_template('app.js', server_name=app.config['SERVER_NAME'])
 
 @app.route('/')
 def index():
@@ -122,5 +127,7 @@ def index():
     return redirect(gameId)
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
-    socketio.run(app, host="0.0.0.0", port=80)
+    if app.debug:
+        app.logger.basicConfig(level=app.logger.DEBUG)
+
+    socketio.run(app)
