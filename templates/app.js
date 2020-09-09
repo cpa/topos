@@ -29,8 +29,7 @@ var particles;
 var particlesColors = Array();
 var colors;
 var currentColor;
-
-var socket = io("{{ server_name }}");
+var socket = io("{{ server_name }}:{{ server_port }}");
 
 socket.on('debug', (data) => {
     console.log('debug', data);
@@ -101,4 +100,4 @@ function update(point) {
     // delaunay.renderPoints(context);
 }
 
-// window.addEventListener("resize", () => { init(); update() });
+window.addEventListener("resize", () => { init(); update(); });

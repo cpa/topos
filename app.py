@@ -6,15 +6,18 @@ from flask_socketio import SocketIO, send, emit, join_room
 import sqlite3
 from random import random, choice
 import json
+import os
 
 app = Flask(__name__)
+socketio = SocketIO(app, cors_allowed_origins='*')
 
+if 'DEBUG' in os.environ and os.environ['DEBUG']:
+    app.debug = True
+    
 if app.debug:
     app.config.from_pyfile('dev.cfg')
 else:
     app.config.from_pyfile('prod.cfg')
-
-socketio = SocketIO(app, cors_allowed_origins='*')
 
 class GameState:
     _colorIndex = 0
@@ -118,7 +121,7 @@ def getGame(gameId):
 
 @app.route('/app.js')
 def app_js():
-    return render_template('app.js', server_name=app.config['SERVER_NAME'])
+    return render_template('app.js', server_name=app.config['SOCKETIO_SERVER_NAME'], server_port=app.config['SOCKETIO_PORT'])
 
 @app.route('/')
 def index():
@@ -127,7 +130,4 @@ def index():
     return redirect(gameId)
 
 if __name__ == '__main__':
-    if app.debug:
-        app.logger.basicConfig(level=app.logger.DEBUG)
-
-    socketio.run(app)
+    socketio.run(app, host=app.config['SOCKETIO_SERVER_NAME'], port=app.config['SOCKETIO_PORT'])
